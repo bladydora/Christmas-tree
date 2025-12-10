@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>手势交互 3D 粒子系统 - 醒与梦境实验室</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #0a0505; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        /* 界面容器 */
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 280px;
+            background: rgba(10, 30, 10, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid rgba(255, 0, 0, 0.3);
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.2), 0 8px 32px rgba(0,0,0,0.5);
+            color: #ffcccc;
+            z-index: 10;
+            transition: opacity 0.3s;
+        }
+
+        h2 { 
+            margin: 0 0 15px 0; 
+            font-size: 20px; 
+            letter-spacing: 2px; 
+            color: #ff0000;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.8), 0 0 20px rgba(0, 255, 0, 0.5);
+            font-weight: bold;
+        }
+        
+        /* 控制项样式 */
+        .control-group { margin-bottom: 15px; }
+        label { 
+            display: block; 
+            margin-bottom: 8px; 
+            font-size: 12px; 
+            color: #00ff00;
+            text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+        }
+        
+        /* 滑块样式 */
+        .slider-container {
+            margin-bottom: 12px;
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 11px;
+            color: #00ff00;
+        }
+        .slider-value {
+            color: #ff0000;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(0, 100, 0, 0.3);
+            outline: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            -moz-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #00ff00;
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(0, 255, 0, 0.8);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #00ff00;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 5px rgba(0, 255, 0, 0.8);
+            -moz-appearance: none;
+            appearance: none;
+        }
+        input[type="range"]:hover::-webkit-slider-thumb {
+            background: #ff0000;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.8);
+        }
+        input[type="range"]:hover::-moz-range-thumb {
+            background: #ff0000;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.8);
+        }
+        
+        /* 折叠按钮 */
+        .toggle-btn {
+            background: rgba(0, 100, 0, 0.3);
+            border: 1px solid rgba(0, 255, 0, 0.5);
+            color: #00ff00;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            margin-top: 10px;
+            width: 100%;
+            transition: all 0.2s;
+        }
+        .toggle-btn:hover {
+            background: rgba(0, 255, 0, 0.2);
+            border-color: #00ff00;
+        }
+        
+        /* 按钮网格 */
+        .shape-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        button {
+            background: rgba(0, 100, 0, 0.3);
+            border: 1px solid rgba(0, 255, 0, 0.5);
+            color: #00ff00;
+            padding: 8px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 12px;
+            text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+        }
+        button:hover {
+            background: rgba(0, 255, 0, 0.2);
+            border-color: #00ff00;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        }
+        button.active {
+            background: #ff0000;
+            color: #ffffff;
+            border-color: #ff0000;
+            font-weight: bold;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.8);
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+        }
+
+        /* 文字输入框 */
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid rgba(0, 255, 0, 0.5);
+            border-radius: 6px;
+            background: rgba(0, 50, 0, 0.5);
+            color: #00ff00;
+            font-size: 12px;
+            margin-top: 8px;
+            box-sizing: border-box;
+            text-shadow: 0 0 3px rgba(0, 255, 0, 0.5);
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #ff0000;
+            background: rgba(50, 0, 0, 0.5);
+            color: #ff0000;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+            text-shadow: 0 0 5px rgba(255, 0, 0, 0.8);
+        }
+        input[type="text"]::placeholder {
+            color: rgba(0, 255, 0, 0.5);
+        }
+
+        /* 颜色选择器 - 隐藏，因为圣诞主题使用固定配色 */
+        input[type="color"] {
+            display: none;
+        }
+
+        /* 状态指示 */
+        #status {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(0, 255, 0, 0.3);
+            font-size: 12px;
+            color: #ffd700;
+            text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+        }
+
+        /* 摄像头预览 (调试用，可隐藏) */
+        #video-preview {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 160px;
+            border-radius: 8px;
+            opacity: 0.5;
+            transform: scaleX(-1); /* 镜像 */
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* 全屏按钮 */
+        #fullscreen-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 100, 0, 0.3);
+            border: 1px solid rgba(0, 255, 0, 0.5);
+            color: #00ff00;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            z-index: 10;
+            text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+            transition: all 0.2s;
+        }
+        #fullscreen-btn:hover { 
+            background: rgba(255, 0, 0, 0.3);
+            border-color: #ff0000;
+            color: #ff0000;
+            box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
+        }
+
+        /* 加载遮罩 */
+        #loader {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #0a0505;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #00ff00;
+            z-index: 100;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <p>正在初始化视觉核心与 AI 模型...</p>
+        <p style="font-size: 12px; opacity: 0.6;">请允许摄像头权限以进行手势交互</p>
+    </div>
+
+    <div id="ui-container">
+        <h2>圣诞粒子</h2>
+        
+        <div class="control-group">
+            <label>模型选择</label>
+            <div class="shape-grid">
+                <button class="active" onclick="setShape('tree')">圣诞树</button>
+                <button onclick="setShape('text')">文字</button>
+            </div>
+        </div>
+
+        <div class="control-group" id="text-input-group" style="display: none;">
+            <label>输入文字 (最多50字符)</label>
+            <input type="text" id="textInput" placeholder="Merry Christmas" maxlength="50">
+        </div>
+
+        <button class="toggle-btn" onclick="toggleParticleControls()">⚙️ 粒子参数调节</button>
+        
+        <div id="particle-controls" style="display: none; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(0, 255, 0, 0.3);">
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>粒子大小</span>
+                    <span class="slider-value" id="sizeValue">4.0</span>
+                </div>
+                <input type="range" id="sizeSlider" min="0.5" max="15" step="0.1" value="4.0">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>发光亮度</span>
+                    <span class="slider-value" id="glowValue">1.5</span>
+                </div>
+                <input type="range" id="glowSlider" min="0.5" max="5" step="0.1" value="1.5">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>动画速度</span>
+                    <span class="slider-value" id="speedValue">2.0</span>
+                </div>
+                <input type="range" id="speedSlider" min="0" max="5" step="0.1" value="2.0">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>噪点强度</span>
+                    <span class="slider-value" id="noiseValue">0.1</span>
+                </div>
+                <input type="range" id="noiseSlider" min="0" max="1" step="0.01" value="0.1">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>透明度</span>
+                    <span class="slider-value" id="alphaValue">1.0</span>
+                </div>
+                <input type="range" id="alphaSlider" min="0" max="1" step="0.01" value="1.0">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>旋转速度</span>
+                    <span class="slider-value" id="rotateValue">0.1</span>
+                </div>
+                <input type="range" id="rotateSlider" min="0" max="1" step="0.01" value="0.1">
+            </div>
+            
+            <div class="slider-container">
+                <div class="slider-label">
+                    <span>X轴旋转</span>
+                    <span class="slider-value" id="rotateXValue">0.1</span>
+                </div>
+                <input type="range" id="rotateXSlider" min="0" max="1" step="0.01" value="0.1">
+            </div>
+        </div>
+
+        <div id="status">等待摄像头画面...</div>
+    </div>
+
+    <button id="fullscreen-btn" onclick="toggleFullScreen()">⛶ 全屏模式</button>
+
+    <video id="input-video" style="display:none"></video>
+    <canvas id="video-preview"></canvas>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <script>
+        // --- 1. 初始化 Three.js 场景 ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x050505, 0.002);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 30;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // --- 2. 粒子系统核心 (Shader) ---
+        // 使用 ShaderMaterial 可以将大量计算放在 GPU 上，实现高性能的变形
+        const particleCount = 20000;
+        const geometry = new THREE.BufferGeometry();
+
+        const initialPositions = new Float32Array(particleCount * 3);
+        const targetPositions = new Float32Array(particleCount * 3);
+        const randomPositions = new Float32Array(particleCount * 3);
+        const particleColors = new Float32Array(particleCount * 3); // RGB颜色数组
+        
+        // 初始化数组
+        for (let i = 0; i < particleCount; i++) {
+            // 随机分布（发散状态）
+            randomPositions[i * 3] = (Math.random() - 0.5) * 100;
+            randomPositions[i * 3 + 1] = (Math.random() - 0.5) * 100;
+            randomPositions[i * 3 + 2] = (Math.random() - 0.5) * 100;
+            
+            // 初始位置
+            initialPositions[i * 3] = randomPositions[i * 3];
+            initialPositions[i * 3 + 1] = randomPositions[i * 3 + 1];
+            initialPositions[i * 3 + 2] = randomPositions[i * 3 + 2];
+            
+            // 默认颜色（白色）
+            particleColors[i * 3] = 1.0;
+            particleColors[i * 3 + 1] = 1.0;
+            particleColors[i * 3 + 2] = 1.0;
+        }
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(initialPositions, 3));
+        geometry.setAttribute('aTarget', new THREE.BufferAttribute(targetPositions, 3));
+        geometry.setAttribute('aRandom', new THREE.BufferAttribute(randomPositions, 3));
+        geometry.setAttribute('aColor', new THREE.BufferAttribute(particleColors, 3));
+
+        // 顶点着色器：混合 目标位置 和 随机位置，支持每个粒子的颜色
+        const vertexShader = `
+            uniform float uTime;
+            uniform float uExpansion; // 0 = 聚合(Target), 1 = 发散(Random)
+            uniform float uSize;
+            uniform float uSpeed; // 动画速度
+            uniform float uNoise; // 噪点强度
+            uniform float uAlpha; // 透明度
+            
+            attribute vec3 aTarget;
+            attribute vec3 aRandom;
+            attribute vec3 aColor;
+            
+            varying float vAlpha;
+            varying vec3 vColor;
+
+            void main() {
+                // 核心插值：根据手势 uExpansion 在形状和混沌之间过渡
+                vec3 newPos = mix(aTarget, aRandom, uExpansion);
+                
+                // 添加噪点波动，让粒子看起来是活的（可调节强度）
+                newPos.x += sin(uTime * uSpeed + newPos.y) * uNoise;
+                newPos.y += cos(uTime * uSpeed + newPos.x) * uNoise;
+
+                vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
+                gl_PointSize = uSize * (300.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+
+                // 透明度（可调节）
+                vAlpha = (1.0 - (uExpansion * 0.5)) * uAlpha;
+                
+                // 传递颜色
+                vColor = aColor;
+            }
+        `;
+
+        // 片元着色器：渲染圆形发光粒子，使用每个粒子的颜色
+        const fragmentShader = `
+            uniform float uGlow; // 发光亮度
+            varying float vAlpha;
+            varying vec3 vColor;
+
+            void main() {
+                // 绘制圆形
+                float r = distance(gl_PointCoord, vec2(0.5, 0.5));
+                if (r > 0.5) discard;
+                
+                // 边缘发光柔和化（可调节亮度）
+                float glow = 1.0 - (r * 2.0);
+                glow = pow(glow, uGlow);
+
+                gl_FragColor = vec4(vColor, vAlpha * glow);
+            }
+        `;
+
+        const material = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uExpansion: { value: 1.0 }, // 默认发散
+                uSize: { value: 4.0 },
+                uSpeed: { value: 2.0 }, // 动画速度
+                uNoise: { value: 0.1 }, // 噪点强度
+                uAlpha: { value: 1.0 }, // 透明度
+                uGlow: { value: 1.5 } // 发光亮度
+            },
+            vertexShader: vertexShader,
+            fragmentShader: fragmentShader,
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending
+        });
+
+        const particles = new THREE.Points(geometry, material);
+        scene.add(particles);
+
+        // --- 3. 形状生成算法 ---
+        
+        // 圣诞树生成函数
+        function generateChristmasTree() {
+            const positions = [];
+            const colors = [];
+            const treeHeight = 20;
+            const treeWidth = 12;
+            const scale = 0.6;
+            
+            // 圣诞树树冠主体（主要是绿色，少量红色点缀）
+            const treeBodyParticles = Math.floor(particleCount * 0.75);
+            for(let i = 0; i < treeBodyParticles; i++) {
+                // 生成三角形树形（树冠部分，不包括底部）
+                const layer = Math.random() * 0.85 + 0.1; // 0.1-0.95，从下到上，留出底部空间给树杆
+                const angle = Math.random() * Math.PI * 2;
+                const radius = (1 - layer) * treeWidth * (0.3 + Math.random() * 0.7);
+                const y = (layer - 0.5) * treeHeight;
+                const x = Math.cos(angle) * radius;
+                const z = Math.sin(angle) * radius;
+                
+                positions.push(x * scale, y * scale, z * scale);
+                
+                // 绿色和红色，红色是绿色的一半（绿色2/3，红色1/3）
+                const rand = Math.random();
+                if (rand > 0.333) {
+                    colors.push(0.0, 1.0, 0.0); // 绿色（主要，2/3）
+                } else {
+                    colors.push(1.0, 0.0, 0.0); // 红色（1/3，绿色的一半）
+                }
+            }
+            
+            // 棕色树杆（底部）
+            const trunkParticles = Math.floor(particleCount * 0.03);
+            const trunkHeight = treeHeight * 0.15; // 树杆高度
+            const trunkWidth = treeWidth * 0.15; // 树杆宽度
+            const trunkBottomY = (-treeHeight * 0.5) * scale; // 树杆底部Y位置
+            
+            for(let i = 0; i < trunkParticles; i++) {
+                const layer = Math.random(); // 0-1，从下到上
+                const angle = Math.random() * Math.PI * 2;
+                const radius = trunkWidth * (0.5 + Math.random() * 0.5); // 圆柱形
+                const y = trunkBottomY + layer * trunkHeight * scale;
+                const x = Math.cos(angle) * radius * scale;
+                const z = Math.sin(angle) * radius * scale;
+                
+                positions.push(x, y, z);
+                // 棕色 (0.6, 0.4, 0.2)
+                colors.push(0.6, 0.4, 0.2); // 棕色
+            }
+            
+            // 顶部白色星星（3D立体五角星，垂直于地面）
+            const starParticles = Math.floor(particleCount * 0.05);
+            const outerRadius = 2.5; // 外圈半径
+            const innerRadius = 1.0; // 内圈半径
+            const starY = (treeHeight * 0.5 + 3) * scale; // 星星中心Y位置
+            const starThickness = 1.5 * scale; // 星星的厚度（Z轴方向，前后）
+            
+            // 生成五角星的10个顶点（5个外顶点 + 5个内顶点）
+            // 五角星在XY平面上（垂直于地面，立起来）
+            const starPoints = [];
+            for(let i = 0; i < 5; i++) {
+                // 外顶点（从顶部开始，逆时针，在XY平面上）
+                const outerAngle = (i * 2 * Math.PI / 5) - Math.PI / 2;
+                starPoints.push({
+                    x: Math.cos(outerAngle) * outerRadius * scale,
+                    y: Math.sin(outerAngle) * outerRadius * scale
+                });
+                
+                // 内顶点（在外顶点之间）
+                const innerAngle = ((i + 0.5) * 2 * Math.PI / 5) - Math.PI / 2;
+                starPoints.push({
+                    x: Math.cos(innerAngle) * innerRadius * scale,
+                    y: Math.sin(innerAngle) * innerRadius * scale
+                });
+            }
+            
+            // 在五角星的顶点、边缘和内部填充粒子（3D立体，垂直于地面）
+            for(let i = 0; i < starParticles; i++) {
+                let x, z, y;
+                
+                if(i < starPoints.length * 2) {
+                    // 前20个粒子放在顶点位置（前后各一层，Z轴方向）
+                    const pointIndex = Math.floor(i / 2);
+                    const point = starPoints[pointIndex];
+                    const depth = (i % 2 === 0) ? -starThickness / 2 : starThickness / 2;
+                    
+                    x = point.x;
+                    y = starY + point.y; // Y位置加上星星中心的Y
+                    z = depth; // Z轴方向是厚度
+                } else {
+                    // 其余粒子填充在五角星的边缘和内部（3D）
+                    // 随机选择一条边
+                    const edgeIndex = Math.floor(Math.random() * 10);
+                    const p1 = starPoints[edgeIndex];
+                    const p2 = starPoints[(edgeIndex + 1) % 10];
+                    
+                    // 在边上随机插值
+                    const t = Math.random();
+                    const baseX = (p1.x + (p2.x - p1.x) * t);
+                    const baseY = (p1.y + (p2.y - p1.y) * t);
+                    
+                    // 添加3D厚度（Z轴方向）和随机偏移
+                    const depth = (Math.random() - 0.5) * starThickness;
+                    x = baseX + (Math.random() - 0.5) * 0.3 * scale;
+                    y = starY + baseY + (Math.random() - 0.5) * 0.3 * scale;
+                    z = depth;
+                }
+                
+                positions.push(x, y, z);
+                colors.push(1.0, 1.0, 1.0); // 白色
+            }
+            
+            // 金色/黄色铃铛装饰（少量点缀，分布在树冠上）
+            const bellParticles = Math.floor(particleCount * 0.02);
+            for(let i = 0; i < bellParticles; i++) {
+                const layer = Math.random() * 0.7 + 0.15; // 树的中上部（树冠部分）
+                const angle = Math.random() * Math.PI * 2;
+                const radius = (1 - layer) * treeWidth * 0.85;
+                const y = (layer - 0.5) * treeHeight;
+                const x = Math.cos(angle) * radius * scale;
+                const z = Math.sin(angle) * radius * scale;
+                
+                positions.push(x, y, z);
+                // 金色/黄色 (明亮的金色)
+                colors.push(1.0, 0.84, 0.0); // 金色
+            }
+            
+            // 红色圣诞礼物包装盒装饰（占装饰的1/3，即黄色铃铛的1/2）
+            const giftParticles = Math.floor(particleCount * 0.01);
+            for(let i = 0; i < giftParticles; i++) {
+                const layer = Math.random() * 0.6 + 0.2; // 树的中部（树冠部分）
+                const angle = Math.random() * Math.PI * 2;
+                const radius = (1 - layer) * treeWidth * 0.8;
+                const y = (layer - 0.5) * treeHeight;
+                const x = Math.cos(angle) * radius * scale;
+                const z = Math.sin(angle) * radius * scale;
+                
+                positions.push(x, y, z);
+                // 红色 (圣诞礼物包装盒)
+                colors.push(1.0, 0.0, 0.0); // 红色
+            }
+            
+            // 银白色光带（螺旋装饰，只在树冠部分，不延伸到树杆）
+            const currentCount = positions.length / 3;
+            const garlandParticles = Math.min(Math.floor(particleCount * 0.08), particleCount - currentCount);
+            const treeCrownBottom = 0.1; // 树冠底部（树杆顶部）
+            const treeCrownTop = 0.95; // 树冠顶部
+            
+            for(let i = 0; i < garlandParticles; i++) {
+                const t = i / garlandParticles;
+                // 将t映射到树冠范围（从树冠底部到顶部）
+                const layer = treeCrownBottom + t * (treeCrownTop - treeCrownBottom);
+                const angle = t * Math.PI * 4; // 螺旋2圈
+                const radius = (1 - layer) * treeWidth * 0.95;
+                const y = (layer - 0.5) * treeHeight;
+                const x = Math.cos(angle) * radius * scale;
+                const z = Math.sin(angle) * radius * scale;
+                
+                positions.push(x, y, z);
+                // 银白色 (稍微偏蓝的白色)
+                colors.push(0.9, 0.9, 1.0); // 银白色
+            }
+            
+            // 填充剩余粒子到随机位置（主要是绿色）
+            const remaining = particleCount - (positions.length / 3);
+            for(let i = 0; i < remaining; i++) {
+                positions.push(
+                    (Math.random() - 0.5) * 20,
+                    (Math.random() - 0.5) * 20,
+                    (Math.random() - 0.5) * 20
+                );
+                // 绿色和红色，红色是绿色的一半（绿色2/3，红色1/3）
+                const rand = Math.random();
+                if (rand > 0.333) {
+                    colors.push(0.0, 1.0, 0.0); // 绿色（主要，2/3）
+                } else {
+                    colors.push(1.0, 0.0, 0.0); // 红色（1/3，绿色的一半）
+                }
+            }
+            
+            // 确保数组长度正确
+            while(positions.length < particleCount * 3) {
+                positions.push(0, 0, 0);
+                colors.push(0.0, 1.0, 0.0);
+            }
+            while(colors.length < particleCount * 3) {
+                colors.push(0.0, 1.0, 0.0);
+            }
+            
+            return { positions, colors };
+        }
+        
+        // 文字生成函数（将文字转换为粒子）
+        function generateText(text) {
+            const positions = [];
+            const colors = [];
+            
+            // 创建canvas来渲染文字
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 800;
+            canvas.height = 200;
+            
+            // 设置文字样式
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 120px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            // 绘制文字
+            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            
+            // 获取像素数据
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+            
+            // 提取文字轮廓的粒子
+            const scale = 0.15;
+            const offsetX = -canvas.width * scale / 2;
+            const offsetY = -canvas.height * scale / 2;
+            
+            // 先收集所有文字像素位置
+            const textPixels = [];
+            for(let y = 0; y < canvas.height; y += 1) {
+                for(let x = 0; x < canvas.width; x += 1) {
+                    const idx = (y * canvas.width + x) * 4;
+                    const alpha = data[idx + 3];
+                    
+                    if(alpha > 128) { // 如果像素不透明
+                        textPixels.push({x, y});
+                    }
+                }
+            }
+            
+            // 如果文字像素太少，降低采样间隔
+            let step = 1;
+            if(textPixels.length < particleCount) {
+                step = Math.max(1, Math.floor(textPixels.length / particleCount));
+            }
+            
+            // 从文字像素中采样粒子
+            let particleIndex = 0;
+            for(let i = 0; i < textPixels.length && particleIndex < particleCount; i += step) {
+                const pixel = textPixels[i];
+                const px = (pixel.x * scale + offsetX);
+                const py = (canvas.height - pixel.y) * scale + offsetY; // 翻转Y轴
+                const pz = (Math.random() - 0.5) * 2; // 添加一些深度
+                
+                positions.push(px, py, pz);
+                
+                // 圣诞红绿配色（交替）
+                if(particleIndex % 2 === 0) {
+                    colors.push(1.0, 0.0, 0.0); // 红色
+                } else {
+                    colors.push(0.0, 1.0, 0.0); // 绿色
+                }
+                
+                particleIndex++;
+            }
+            
+            // 如果粒子不够，用文字周围的随机位置填充
+            const remaining = particleCount - particleIndex;
+            for(let i = 0; i < remaining; i++) {
+                // 在文字区域附近随机分布
+                const px = (Math.random() - 0.5) * canvas.width * scale;
+                const py = (Math.random() - 0.5) * canvas.height * scale;
+                const pz = (Math.random() - 0.5) * 2;
+                
+                positions.push(px, py, pz);
+                
+                // 圣诞红绿配色
+                if(i % 2 === 0) {
+                    colors.push(1.0, 0.0, 0.0); // 红色
+                } else {
+                    colors.push(0.0, 1.0, 0.0); // 绿色
+                }
+            }
+            
+            // 确保数组长度正确
+            while(positions.length < particleCount * 3) {
+                positions.push(0, 0, 0);
+                colors.push(0.0, 1.0, 0.0);
+            }
+            while(colors.length < particleCount * 3) {
+                colors.push(0.0, 1.0, 0.0);
+            }
+            
+            return { positions, colors };
+        }
+
+        // 更新目标形状的函数
+        function updateTargetShape(shapeType) {
+            let result;
+            if(shapeType === 'tree') {
+                result = generateChristmasTree();
+            } else if(shapeType === 'text') {
+                const textInput = document.getElementById('textInput');
+                const text = textInput.value.trim() || 'Merry Christmas';
+                result = generateText(text);
+            } else {
+                // 默认圣诞树
+                result = generateChristmasTree();
+            }
+
+            const posAttr = geometry.attributes.aTarget;
+            const colorAttr = geometry.attributes.aColor;
+            
+            // 确保数组长度正确
+            const requiredLength = particleCount * 3;
+            while(result.positions.length < requiredLength) {
+                result.positions.push(0, 0, 0);
+            }
+            while(result.colors.length < requiredLength) {
+                result.colors.push(0.0, 1.0, 0.0); // 默认绿色
+            }
+            
+            for(let i=0; i<requiredLength; i++) {
+                posAttr.array[i] = result.positions[i] || 0;
+                // 确保颜色值在0-1范围内
+                const colorValue = result.colors[i] !== undefined ? result.colors[i] : 0.0;
+                colorAttr.array[i] = Math.max(0, Math.min(1, colorValue));
+            }
+            
+            posAttr.needsUpdate = true;
+            colorAttr.needsUpdate = true;
+        }
+
+        // 初始化默认形状（圣诞树）
+        updateTargetShape('tree');
+
+        // --- 4. 交互控制 ---
+        
+        // 形状切换
+        window.setShape = (type) => {
+            updateTargetShape(type);
+            // 更新按钮样式
+            document.querySelectorAll('.shape-grid button').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // 显示/隐藏文字输入框
+            const textInputGroup = document.getElementById('text-input-group');
+            if(type === 'text') {
+                textInputGroup.style.display = 'block';
+            } else {
+                textInputGroup.style.display = 'none';
+            }
+        };
+
+        // 文字输入框事件
+        const textInput = document.getElementById('textInput');
+        textInput.addEventListener('input', (e) => {
+            const currentShape = document.querySelector('.shape-grid button.active');
+            if(currentShape && currentShape.textContent === '文字') {
+                updateTargetShape('text');
+            }
+        });
+
+        // 粒子参数控制
+        let rotateSpeed = 0.1;
+        let rotateXSpeed = 0.1;
+        
+        function toggleParticleControls() {
+            const controls = document.getElementById('particle-controls');
+            controls.style.display = controls.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        // 粒子大小
+        document.getElementById('sizeSlider').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            material.uniforms.uSize.value = value;
+            document.getElementById('sizeValue').textContent = value.toFixed(1);
+        });
+        
+        // 发光亮度
+        document.getElementById('glowSlider').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            material.uniforms.uGlow.value = value;
+            document.getElementById('glowValue').textContent = value.toFixed(1);
+        });
+        
+        // 动画速度
+        document.getElementById('speedSlider').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            material.uniforms.uSpeed.value = value;
+            document.getElementById('speedValue').textContent = value.toFixed(1);
+        });
+        
+        // 噪点强度
+        document.getElementById('noiseSlider').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            material.uniforms.uNoise.value = value;
+            document.getElementById('noiseValue').textContent = value.toFixed(2);
+        });
+        
+        // 透明度
+        document.getElementById('alphaSlider').addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            material.uniforms.uAlpha.value = value;
+            document.getElementById('alphaValue').textContent = value.toFixed(2);
+        });
+        
+        // 旋转速度
+        document.getElementById('rotateSlider').addEventListener('input', (e) => {
+            rotateSpeed = parseFloat(e.target.value);
+            document.getElementById('rotateValue').textContent = rotateSpeed.toFixed(2);
+        });
+        
+        // X轴旋转
+        document.getElementById('rotateXSlider').addEventListener('input', (e) => {
+            rotateXSpeed = parseFloat(e.target.value);
+            document.getElementById('rotateXValue').textContent = rotateXSpeed.toFixed(2);
+        });
+
+        // 全屏切换
+        window.toggleFullScreen = () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        };
+
+        // --- 5. MediaPipe 手势识别集成 ---
+        const videoElement = document.getElementById('input-video');
+        const previewCanvas = document.getElementById('video-preview');
+        const previewCtx = previewCanvas.getContext('2d');
+        const statusDiv = document.getElementById('status');
+        const loader = document.getElementById('loader');
+
+        let targetExpansion = 1.0; // 目标发散值
+        let currentExpansion = 1.0; // 当前发散值 (用于平滑插值)
+
+        function onResults(results) {
+            // 绘制预览小窗口
+            previewCanvas.width = videoElement.videoWidth;
+            previewCanvas.height = videoElement.videoHeight;
+            previewCtx.save();
+            previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            previewCtx.drawImage(results.image, 0, 0, previewCanvas.width, previewCanvas.height);
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                statusDiv.innerText = "状态: 已捕捉手势";
+                statusDiv.style.color = "#00ff88";
+
+                // 获取第一只手
+                const landmarks = results.multiHandLandmarks[0];
+                
+                // 绘制骨架到预览图
+                drawConnectors(previewCtx, landmarks, HAND_CONNECTIONS, {color: '#00d2ff', lineWidth: 5});
+
+                // 计算交互逻辑：拇指指尖(4) 和 食指指尖(8) 的距离
+                const thumbTip = landmarks[4];
+                const indexTip = landmarks[8];
+                
+                // 计算欧几里得距离
+                const distance = Math.sqrt(
+                    Math.pow(thumbTip.x - indexTip.x, 2) + 
+                    Math.pow(thumbTip.y - indexTip.y, 2)
+                );
+
+                // 归一化距离：通常距离在 0.02 (捏合) 到 0.2 (张开) 之间
+                // 我们将其映射到 0 (聚合/捏合) 到 1 (发散/张开)
+                let factor = (distance - 0.05) * 4.0; 
+                factor = Math.max(0, Math.min(1, factor)); // 限制在 0-1
+
+                // 逻辑反转确认：
+                // 需求：张开 = 扩散(1)，捏合 = 收缩(0)
+                // 上面的 factor: 距离大(张开) -> 1，距离小(捏合) -> 0
+                targetExpansion = factor; 
+
+            } else {
+                statusDiv.innerText = "状态: 未检测到手部";
+                statusDiv.style.color = "#ffcc00";
+                // 如果没有手，自动缓慢变回某种状态或保持
+                targetExpansion = 0.0; // 默认自动聚合展示模型
+            }
+            previewCtx.restore();
+            
+            // 隐藏加载层
+            if(loader.style.display !== 'none') loader.style.display = 'none';
+        }
+
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onResults);
+
+        const cameraUtils = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 640,
+            height: 480
+        });
+        
+        cameraUtils.start().catch(err => {
+            console.error(err);
+            statusDiv.innerText = "错误: 无法启动摄像头 (请使用HTTPS/Localhost)";
+            statusDiv.style.color = "red";
+        });
+
+        // --- 6. 渲染循环 ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = performance.now() * 0.001;
+            material.uniforms.uTime.value = time;
+
+            // 平滑插值手势数值，避免跳变
+            currentExpansion += (targetExpansion - currentExpansion) * 0.1;
+            material.uniforms.uExpansion.value = currentExpansion;
+
+            // 旋转整个粒子群（可调节速度）
+            particles.rotation.y = time * rotateSpeed;
+            particles.rotation.x = Math.sin(time * 0.2) * rotateXSpeed;
+
+            renderer.render(scene, camera);
+        }
+
+        // 窗口大小自适应
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+
+    </script>
+</body>
+</html>
