@@ -3,9 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>手势交互 3D 粒子系统 - 醒与梦境实验室</title>
+    <title>手势交互 3D 粒子系统 - 醒与梦境工作室</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #0a0505; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        /* 渲染器容器 */
+        #renderer-container {
+            position: absolute;
+            left: 320px; /* 左侧UI宽度 + 边距 */
+            top: 0;
+            width: calc(100% - 320px);
+            height: 100%;
+        }
         
         /* 界面容器 */
         #ui-container {
@@ -145,7 +154,7 @@
         }
 
         /* 文字输入框 */
-        input[type="text"] {
+        input[type="text"], textarea {
             width: 100%;
             padding: 8px;
             border: 1px solid rgba(0, 255, 0, 0.5);
@@ -156,8 +165,13 @@
             margin-top: 8px;
             box-sizing: border-box;
             text-shadow: 0 0 3px rgba(0, 255, 0, 0.5);
+            font-family: inherit;
         }
-        input[type="text"]:focus {
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        input[type="text"]:focus, textarea:focus {
             outline: none;
             border-color: #ff0000;
             background: rgba(50, 0, 0, 0.5);
@@ -165,7 +179,7 @@
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
             text-shadow: 0 0 5px rgba(255, 0, 0, 0.8);
         }
-        input[type="text"]::placeholder {
+        input[type="text"]::placeholder, textarea::placeholder {
             color: rgba(0, 255, 0, 0.5);
         }
 
@@ -219,6 +233,18 @@
             box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
         }
 
+        /* 右下角标注 */
+        #credit {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: rgba(0, 255, 0, 0.6);
+            font-size: 12px;
+            text-shadow: 0 0 5px rgba(0, 255, 0, 0.5);
+            z-index: 10;
+            pointer-events: none;
+        }
+
         /* 加载遮罩 */
         #loader {
             position: fixed;
@@ -242,7 +268,7 @@
     </div>
 
     <div id="ui-container">
-        <h2>圣诞粒子</h2>
+        <h2>CAT & CHRISTMAS<br>猫猫圣诞</h2>
         
         <div class="control-group">
             <label>模型选择</label>
@@ -253,8 +279,8 @@
         </div>
 
         <div class="control-group" id="text-input-group" style="display: none;">
-            <label>输入文字 (最多50字符)</label>
-            <input type="text" id="textInput" placeholder="Merry Christmas" maxlength="50">
+            <label>输入文字 (支持换行)</label>
+            <textarea id="textInput" placeholder="Merry Christmas" rows="3" style="resize: vertical; min-height: 60px;"></textarea>
         </div>
 
         <button class="toggle-btn" onclick="toggleParticleControls()">⚙️ 粒子参数调节</button>
@@ -263,17 +289,17 @@
             <div class="slider-container">
                 <div class="slider-label">
                     <span>粒子大小</span>
-                    <span class="slider-value" id="sizeValue">4.0</span>
+                    <span class="slider-value" id="sizeValue">0.6</span>
                 </div>
-                <input type="range" id="sizeSlider" min="0.5" max="15" step="0.1" value="4.0">
+                <input type="range" id="sizeSlider" min="0.5" max="15" step="0.1" value="0.6">
             </div>
             
             <div class="slider-container">
                 <div class="slider-label">
                     <span>发光亮度</span>
-                    <span class="slider-value" id="glowValue">1.5</span>
+                    <span class="slider-value" id="glowValue">2.5</span>
                 </div>
-                <input type="range" id="glowSlider" min="0.5" max="5" step="0.1" value="1.5">
+                <input type="range" id="glowSlider" min="0.5" max="5" step="0.1" value="2.5">
             </div>
             
             <div class="slider-container">
@@ -310,10 +336,10 @@
             
             <div class="slider-container">
                 <div class="slider-label">
-                    <span>X轴旋转</span>
-                    <span class="slider-value" id="rotateXValue">0.1</span>
+                    <span>散开速度</span>
+                    <span class="slider-value" id="spreadSpeedValue">0.1</span>
                 </div>
-                <input type="range" id="rotateXSlider" min="0" max="1" step="0.01" value="0.1">
+                <input type="range" id="spreadSpeedSlider" min="0.01" max="1" step="0.01" value="0.1">
             </div>
         </div>
 
@@ -321,6 +347,8 @@
     </div>
 
     <button id="fullscreen-btn" onclick="toggleFullScreen()">⛶ 全屏模式</button>
+
+    <div id="credit">BY 醒与梦境工作室</div>
 
     <video id="input-video" style="display:none"></video>
     <canvas id="video-preview"></canvas>
@@ -339,10 +367,17 @@
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.z = 30;
 
+        // 创建渲染器容器
+        const rendererContainer = document.createElement('div');
+        rendererContainer.id = 'renderer-container';
+        document.body.appendChild(rendererContainer);
+        
         const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        const containerWidth = window.innerWidth - 320; // 减去左侧UI宽度
+        const containerHeight = window.innerHeight;
+        renderer.setSize(containerWidth, containerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
-        document.body.appendChild(renderer.domElement);
+        rendererContainer.appendChild(renderer.domElement);
 
         // --- 2. 粒子系统核心 (Shader) ---
         // 使用 ShaderMaterial 可以将大量计算放在 GPU 上，实现高性能的变形
@@ -385,6 +420,7 @@
             uniform float uSpeed; // 动画速度
             uniform float uNoise; // 噪点强度
             uniform float uAlpha; // 透明度
+            uniform float uShapeMode; // 0=圣诞树模式，1=文字模式
             
             attribute vec3 aTarget;
             attribute vec3 aRandom;
@@ -402,7 +438,12 @@
                 newPos.y += cos(uTime * uSpeed + newPos.x) * uNoise;
 
                 vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
-                gl_PointSize = uSize * (300.0 / -mvPosition.z);
+                
+                // 当散开时（uExpansion大）增大粒子尺寸，让雪花更明显
+                // 两种模式都支持雪花形状，所以都需要增大尺寸
+                float sizeMultiplier = 1.0 + uExpansion * 1.5; // 散开时尺寸增加1.5倍
+                
+                gl_PointSize = uSize * sizeMultiplier * (300.0 / -mvPosition.z);
                 gl_Position = projectionMatrix * mvPosition;
 
                 // 透明度（可调节）
@@ -413,22 +454,112 @@
             }
         `;
 
-        // 片元着色器：渲染圆形发光粒子，使用每个粒子的颜色
+        // 片元着色器：渲染圆形发光粒子或雪花形状，使用每个粒子的颜色
         const fragmentShader = `
             uniform float uGlow; // 发光亮度
+            uniform float uExpansion; // 发散程度（用于文字模式下的形状切换）
+            uniform float uShapeMode; // 0=圣诞树模式，1=文字模式
+            uniform float uTime; // 时间（用于雪花旋转动画）
             varying float vAlpha;
             varying vec3 vColor;
 
-            void main() {
-                // 绘制圆形
-                float r = distance(gl_PointCoord, vec2(0.5, 0.5));
-                if (r > 0.5) discard;
+            // 绘制雪花形状的函数
+            float drawSnowflake(vec2 uv) {
+                // 将坐标中心移到 (0.5, 0.5)
+                vec2 center = vec2(0.5, 0.5);
+                vec2 pos = uv - center;
                 
-                // 边缘发光柔和化（可调节亮度）
-                float glow = 1.0 - (r * 2.0);
-                glow = pow(glow, uGlow);
+                // 计算角度和距离
+                float angle = atan(pos.y, pos.x);
+                float dist = length(pos);
+                
+                // 创建六角星形状（雪花）
+                float arms = 6.0;
+                float pi = 3.14159265359;
+                float armAngle = mod(angle + pi / arms, 2.0 * pi / arms) - pi / arms;
+                
+                // 主臂（从中心向外延伸）
+                float mainArmLength = 0.35;
+                float mainArmWidth = 0.08;
+                float mainArm = 0.0;
+                if (dist < mainArmLength) {
+                    float radialDist = abs(dist * cos(armAngle));
+                    mainArm = smoothstep(mainArmWidth, 0.0, radialDist) * 
+                              smoothstep(0.0, 0.05, dist);
+                }
+                
+                // 侧臂（在主臂中间位置，向两侧延伸）
+                float sideArmPos = 0.2;
+                float sideArmLength = 0.12;
+                float sideArmWidth = 0.06;
+                float sideArm = 0.0;
+                if (abs(dist - sideArmPos) < sideArmLength) {
+                    float sideDist = abs(dist - sideArmPos);
+                    float sideRadial = abs(sin(armAngle) * dist);
+                    sideArm = smoothstep(sideArmWidth, 0.0, sideRadial) * 
+                             smoothstep(sideArmLength, 0.0, sideDist);
+                }
+                
+                // 中心圆点
+                float centerDot = smoothstep(0.08, 0.0, dist);
+                
+                // 组合所有部分
+                return max(max(mainArm, sideArm), centerDot);
+            }
 
-                gl_FragColor = vec4(vColor, vAlpha * glow);
+            void main() {
+                vec2 uv = gl_PointCoord;
+                
+                // 在文字模式下，根据 uExpansion 切换形状
+                if (uShapeMode > 0.5) {
+                    // 文字模式
+                    float shapeFactor = smoothstep(0.3, 0.7, uExpansion); // 平滑过渡
+                    
+                    // 混合圆形和雪花
+                    float circle = 0.0;
+                    float snowflake = 0.0;
+                    
+                    // 圆形（用于聚拢时形成文字）
+                    float r = distance(uv, vec2(0.5, 0.5));
+                    if (r < 0.5) {
+                        circle = 1.0 - (r * 2.0);
+                        circle = pow(circle, uGlow);
+                    }
+                    
+                    // 雪花（用于散开时）
+                    snowflake = drawSnowflake(uv);
+                    
+                    // 根据 shapeFactor 混合两种形状
+                    float finalShape = mix(circle, snowflake, shapeFactor);
+                    
+                    if (finalShape < 0.01) discard;
+                    
+                    gl_FragColor = vec4(vColor, vAlpha * finalShape);
+                } else {
+                    // 圣诞树模式：根据 uExpansion 切换形状
+                    float shapeFactor = smoothstep(0.3, 0.7, uExpansion); // 平滑过渡
+                    
+                    // 混合圆形和雪花
+                    float circle = 0.0;
+                    float snowflake = 0.0;
+                    
+                    // 圆形（用于聚拢时形成圣诞树）
+                    float r = distance(uv, vec2(0.5, 0.5));
+                    if (r < 0.5) {
+                        circle = 1.0 - (r * 2.0);
+                        circle = pow(circle, uGlow);
+                    }
+                    
+                    // 雪花（用于散开时）
+                    snowflake = drawSnowflake(uv);
+                    
+                    // 根据 shapeFactor 混合两种形状
+                    float finalShape = mix(circle, snowflake, shapeFactor);
+                    
+                    if (finalShape < 0.01) discard;
+                    
+                    gl_FragColor = vec4(vColor, vAlpha * finalShape);
+                }
             }
         `;
 
@@ -436,11 +567,12 @@
             uniforms: {
                 uTime: { value: 0 },
                 uExpansion: { value: 1.0 }, // 默认发散
-                uSize: { value: 4.0 },
+                uSize: { value: 0.6 },
                 uSpeed: { value: 2.0 }, // 动画速度
                 uNoise: { value: 0.1 }, // 噪点强度
                 uAlpha: { value: 1.0 }, // 透明度
-                uGlow: { value: 1.5 } // 发光亮度
+                uGlow: { value: 2.5 }, // 发光亮度
+                uShapeMode: { value: 0.0 } // 0=圣诞树模式，1=文字模式
             },
             vertexShader: vertexShader,
             fragmentShader: fragmentShader,
@@ -451,6 +583,46 @@
 
         const particles = new THREE.Points(geometry, material);
         scene.add(particles);
+
+        // --- 小猫粒子系统 ---
+        const catParticleCount = 500;
+        const catGeometry = new THREE.BufferGeometry();
+        const catPositions = new Float32Array(catParticleCount * 3);
+        const catColors = new Float32Array(catParticleCount * 3);
+        
+        // 初始化小猫粒子位置（初始在屏幕外）
+        for(let i = 0; i < catParticleCount; i++) {
+            catPositions[i * 3] = -100; // 初始在屏幕左侧外
+            catPositions[i * 3 + 1] = 0;
+            catPositions[i * 3 + 2] = 0;
+            // 白色发光
+            catColors[i * 3] = 1.0;
+            catColors[i * 3 + 1] = 1.0;
+            catColors[i * 3 + 2] = 1.0;
+        }
+        
+        catGeometry.setAttribute('position', new THREE.BufferAttribute(catPositions, 3));
+        catGeometry.setAttribute('color', new THREE.BufferAttribute(catColors, 3));
+        
+        // 小猫材质（白色发光）
+        const catMaterial = new THREE.PointsMaterial({
+            size: 0.4, // 减小粒子大小
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+            sizeAttenuation: true
+        });
+        
+        const catParticles = new THREE.Points(catGeometry, catMaterial);
+        scene.add(catParticles);
+        
+        // 小猫状态
+        let catVisible = true; // 默认显示小猫
+        let catX = -15; // 小猫初始X位置（在树左侧）
+        let catSpeed = 0.15; // 小猫移动速度
+        const catBaseY = -8; // 小猫Y位置（树下）
+        let catMoving = false; // 小猫是否正在移动
 
         // --- 3. 形状生成算法 ---
         
@@ -597,15 +769,18 @@
             
             // 银白色光带（螺旋装饰，只在树冠部分，不延伸到树杆）
             const currentCount = positions.length / 3;
-            const garlandParticles = Math.min(Math.floor(particleCount * 0.08), particleCount - currentCount);
-            const treeCrownBottom = 0.1; // 树冠底部（树杆顶部）
+            // 增加光带粒子数量，让光带更密集
+            const garlandParticles = Math.min(Math.floor(particleCount * 0.12), particleCount - currentCount);
+            // 树杆高度是0.15，树杆顶部在layer=0.15处，所以光带应该在layer=0.15处截断
+            const treeCrownBottom = 0.15; // 树冠底部（树杆顶部，光带在此截断）
             const treeCrownTop = 0.95; // 树冠顶部
             
             for(let i = 0; i < garlandParticles; i++) {
                 const t = i / garlandParticles;
                 // 将t映射到树冠范围（从树冠底部到顶部）
                 const layer = treeCrownBottom + t * (treeCrownTop - treeCrownBottom);
-                const angle = t * Math.PI * 4; // 螺旋2圈
+                // 增加螺旋圈数，让光带更密集（从2圈增加到5圈）
+                const angle = t * Math.PI * 10; // 螺旋5圈
                 const radius = (1 - layer) * treeWidth * 0.95;
                 const y = (layer - 0.5) * treeHeight;
                 const x = Math.cos(angle) * radius * scale;
@@ -645,32 +820,150 @@
             return { positions, colors };
         }
         
-        // 文字生成函数（将文字转换为粒子）
+        // 文字生成函数（将文字转换为粒子，支持多行，自适应字体大小）
         function generateText(text) {
             const positions = [];
             const colors = [];
             
-            // 创建canvas来渲染文字
+            // 计算可用显示区域（考虑左侧UI）
+            const containerWidth = window.innerWidth - 320;
+            const containerHeight = window.innerHeight;
+            const maxWidth = containerWidth * 0.85; // 使用容器的85%宽度
+            const maxHeight = containerHeight * 0.75; // 使用容器的75%高度
+            
+            // 创建临时canvas用于测量
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // 分割原始文字为行
+            const originalLines = text.split('\n');
+            
+            // 智能估算初始字体大小：根据文字长度和行数
+            // 估算每个字符的平均宽度（Arial bold大约是字体大小的0.6倍）
+            const totalChars = text.replace(/\s/g, '').length; // 去除空格后的字符数
+            const estimatedCharsPerLine = Math.ceil(totalChars / originalLines.length);
+            const estimatedFontSizeFromWidth = (maxWidth / estimatedCharsPerLine) * 1.2; // 考虑间距
+            const estimatedFontSizeFromHeight = (maxHeight / originalLines.length) / 1.2; // 考虑行高
+            let fontSize = Math.min(estimatedFontSizeFromWidth, estimatedFontSizeFromHeight, 80); // 最大80px
+            fontSize = Math.max(fontSize, 20); // 最小20px作为起始
+            
+            let wrappedLines = [];
+            let lineHeight = 0;
+            let totalHeight = 0;
+            let actualWidth = 0;
+            
+            // 使用二分查找快速找到合适的字体大小
+            let minFontSize = 12;
+            let maxFontSize = fontSize;
+            let bestFontSize = fontSize;
+            
+            // 先快速缩小到合适的范围
+            while(maxFontSize - minFontSize > 2) {
+                fontSize = Math.floor((minFontSize + maxFontSize) / 2);
+                tempCtx.font = `bold ${fontSize}px Arial`;
+                lineHeight = fontSize * 1.2;
+                
+                // 重新计算换行
+                wrappedLines = [];
+                let maxLineWidth = 0;
+                
+                for(let line of originalLines) {
+                    const words = line.split(' ');
+                    let currentLine = '';
+                    for(let word of words) {
+                        const testLine = currentLine ? currentLine + ' ' + word : word;
+                        const metrics = tempCtx.measureText(testLine);
+                        if(metrics.width > maxWidth && currentLine) {
+                            wrappedLines.push(currentLine);
+                            maxLineWidth = Math.max(maxLineWidth, tempCtx.measureText(currentLine).width);
+                            currentLine = word;
+                        } else {
+                            currentLine = testLine;
+                        }
+                    }
+                    if(currentLine) {
+                        wrappedLines.push(currentLine);
+                        maxLineWidth = Math.max(maxLineWidth, tempCtx.measureText(currentLine).width);
+                    }
+                }
+                
+                // 计算总高度和实际宽度
+                totalHeight = wrappedLines.length * lineHeight;
+                actualWidth = maxLineWidth;
+                
+                // 检查是否适合显示区域
+                if(totalHeight <= maxHeight && actualWidth <= maxWidth) {
+                    // 可以容纳，尝试更大的字体
+                    bestFontSize = fontSize;
+                    minFontSize = fontSize + 1;
+                } else {
+                    // 太大，需要更小的字体
+                    maxFontSize = fontSize - 1;
+                }
+            }
+            
+            fontSize = bestFontSize;
+            
+            // 重新计算最终的行高和换行（使用最终字体大小）
+            tempCtx.font = `bold ${fontSize}px Arial`;
+            lineHeight = fontSize * 1.2;
+            wrappedLines = [];
+            let maxLineWidth = 0;
+            
+            for(let line of originalLines) {
+                const words = line.split(' ');
+                let currentLine = '';
+                for(let word of words) {
+                    const testLine = currentLine ? currentLine + ' ' + word : word;
+                    const metrics = tempCtx.measureText(testLine);
+                    if(metrics.width > maxWidth && currentLine) {
+                        wrappedLines.push(currentLine);
+                        maxLineWidth = Math.max(maxLineWidth, tempCtx.measureText(currentLine).width);
+                        currentLine = word;
+                    } else {
+                        currentLine = testLine;
+                    }
+                }
+                if(currentLine) {
+                    wrappedLines.push(currentLine);
+                    maxLineWidth = Math.max(maxLineWidth, tempCtx.measureText(currentLine).width);
+                }
+            }
+            
+            totalHeight = wrappedLines.length * lineHeight;
+            
+            // 创建实际渲染的canvas
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            canvas.width = 800;
-            canvas.height = 200;
+            
+            // 设置canvas大小（添加一些边距）
+            canvas.width = Math.min(maxLineWidth + 40, maxWidth);
+            canvas.height = Math.min(totalHeight + 40, maxHeight);
             
             // 设置文字样式
             ctx.fillStyle = 'white';
-            ctx.font = 'bold 120px Arial';
+            ctx.font = `bold ${fontSize}px Arial`;
             ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            ctx.textBaseline = 'top';
             
-            // 绘制文字
-            ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+            // 绘制多行文字（居中）
+            const startY = (canvas.height - totalHeight) / 2;
+            wrappedLines.forEach((line, index) => {
+                const y = startY + index * lineHeight;
+                ctx.fillText(line, canvas.width / 2, y);
+            });
             
             // 获取像素数据
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const data = imageData.data;
             
             // 提取文字轮廓的粒子
-            const scale = 0.15;
+            // 根据canvas大小动态调整scale，确保文字不超出显示区域
+            const displayWidth = window.innerWidth - 320;
+            const displayHeight = window.innerHeight;
+            const scaleX = (displayWidth * 0.7) / canvas.width; // 使用容器的70%宽度
+            const scaleY = (displayHeight * 0.6) / canvas.height; // 使用容器的60%高度
+            const scale = Math.min(scaleX, scaleY, 0.2); // 取较小值，最大不超过0.2
             const offsetX = -canvas.width * scale / 2;
             const offsetY = -canvas.height * scale / 2;
             
@@ -703,8 +996,8 @@
                 
                 positions.push(px, py, pz);
                 
-                // 圣诞红绿配色（交替）
-                if(particleIndex % 2 === 0) {
+                // 只使用红色和绿色两种粒子（随机分配）
+                if(Math.random() > 0.5) {
                     colors.push(1.0, 0.0, 0.0); // 红色
                 } else {
                     colors.push(0.0, 1.0, 0.0); // 绿色
@@ -723,21 +1016,31 @@
                 
                 positions.push(px, py, pz);
                 
-                // 圣诞红绿配色
-                if(i % 2 === 0) {
+                // 只使用红色和绿色两种粒子（随机分配）
+                if(Math.random() > 0.5) {
                     colors.push(1.0, 0.0, 0.0); // 红色
                 } else {
                     colors.push(0.0, 1.0, 0.0); // 绿色
                 }
             }
             
-            // 确保数组长度正确
+            // 确保数组长度正确（只使用红色或绿色）
             while(positions.length < particleCount * 3) {
                 positions.push(0, 0, 0);
-                colors.push(0.0, 1.0, 0.0);
+                // 随机使用红色或绿色
+                if(Math.random() > 0.5) {
+                    colors.push(1.0, 0.0, 0.0); // 红色
+                } else {
+                    colors.push(0.0, 1.0, 0.0); // 绿色
+                }
             }
             while(colors.length < particleCount * 3) {
-                colors.push(0.0, 1.0, 0.0);
+                // 随机使用红色或绿色
+                if(Math.random() > 0.5) {
+                    colors.push(1.0, 0.0, 0.0); // 红色
+                } else {
+                    colors.push(0.0, 1.0, 0.0); // 绿色
+                }
             }
             
             return { positions, colors };
@@ -765,23 +1068,184 @@
             while(result.positions.length < requiredLength) {
                 result.positions.push(0, 0, 0);
             }
+            // 在文字模式下，确保填充的颜色也是红色或绿色
             while(result.colors.length < requiredLength) {
-                result.colors.push(0.0, 1.0, 0.0); // 默认绿色
+                if(shapeType === 'text') {
+                    // 文字模式：随机使用红色或绿色
+                    if(Math.random() > 0.5) {
+                        result.colors.push(1.0, 0.0, 0.0); // 红色
+                    } else {
+                        result.colors.push(0.0, 1.0, 0.0); // 绿色
+                    }
+                } else {
+                    result.colors.push(0.0, 1.0, 0.0); // 默认绿色（圣诞树模式）
+                }
             }
             
-            for(let i=0; i<requiredLength; i++) {
-                posAttr.array[i] = result.positions[i] || 0;
-                // 确保颜色值在0-1范围内
-                const colorValue = result.colors[i] !== undefined ? result.colors[i] : 0.0;
-                colorAttr.array[i] = Math.max(0, Math.min(1, colorValue));
+            for(let i=0; i<particleCount; i++) {
+                // 更新位置
+                posAttr.array[i * 3] = result.positions[i * 3] || 0;
+                posAttr.array[i * 3 + 1] = result.positions[i * 3 + 1] || 0;
+                posAttr.array[i * 3 + 2] = result.positions[i * 3 + 2] || 0;
+                
+                // 更新颜色
+                if(shapeType === 'text') {
+                    // 文字模式：确保只使用红色或绿色
+                    const r = result.colors[i * 3] || 0;
+                    const g = result.colors[i * 3 + 1] || 0;
+                    const b = result.colors[i * 3 + 2] || 0;
+                    
+                    // 如果颜色不是纯红或纯绿（比如黄色：r>0且g>0），强制转换为红或绿
+                    if(r > 0 && g > 0) {
+                        // 随机选择红色或绿色
+                        if(Math.random() > 0.5) {
+                            colorAttr.array[i * 3] = 1.0;     // R
+                            colorAttr.array[i * 3 + 1] = 0.0; // G
+                            colorAttr.array[i * 3 + 2] = 0.0; // B
+                        } else {
+                            colorAttr.array[i * 3] = 0.0;     // R
+                            colorAttr.array[i * 3 + 1] = 1.0; // G
+                            colorAttr.array[i * 3 + 2] = 0.0; // B
+                        }
+                    } else {
+                        // 已经是纯红或纯绿，直接使用
+                        colorAttr.array[i * 3] = Math.max(0, Math.min(1, r));
+                        colorAttr.array[i * 3 + 1] = Math.max(0, Math.min(1, g));
+                        colorAttr.array[i * 3 + 2] = Math.max(0, Math.min(1, b));
+                    }
+                } else {
+                    // 圣诞树模式：正常处理所有颜色
+                    colorAttr.array[i * 3] = Math.max(0, Math.min(1, result.colors[i * 3] || 0));
+                    colorAttr.array[i * 3 + 1] = Math.max(0, Math.min(1, result.colors[i * 3 + 1] || 0));
+                    colorAttr.array[i * 3 + 2] = Math.max(0, Math.min(1, result.colors[i * 3 + 2] || 0));
+                }
             }
             
             posAttr.needsUpdate = true;
             colorAttr.needsUpdate = true;
+            
+            // 在文字模式下，使用 NormalBlending 避免红绿重叠产生黄色
+            // 在圣诞树模式下，使用 AdditiveBlending 保持发光效果
+            if(shapeType === 'text') {
+                material.blending = THREE.NormalBlending;
+                material.uniforms.uShapeMode.value = 1.0; // 文字模式
+            } else {
+                material.blending = THREE.AdditiveBlending;
+                material.uniforms.uShapeMode.value = 0.0; // 圣诞树模式
+            }
         }
 
         // 初始化默认形状（圣诞树）
         updateTargetShape('tree');
+
+        // 生成小猫形状的函数
+        function generateCat(x, y, time = 0) {
+            const positions = [];
+            const colors = [];
+            const catSize = 1.5; // 减小小猫整体大小
+            
+            // 小猫身体（椭圆形，头向右）
+            const bodyParticles = Math.floor(catParticleCount * 0.4);
+            for(let i = 0; i < bodyParticles; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = (0.3 + Math.random() * 0.4) * catSize;
+                const px = x + Math.cos(angle) * radius * 0.8; // 身体稍微拉长
+                const py = y + Math.sin(angle) * radius * 0.6;
+                const pz = (Math.random() - 0.5) * 0.5;
+                positions.push(px, py, pz);
+                colors.push(1.0, 1.0, 1.0); // 白色
+            }
+            
+            // 小猫头部（圆形，在右侧）
+            const headParticles = Math.floor(catParticleCount * 0.25);
+            const headX = x + catSize * 0.8; // 头部在身体右侧
+            const headY = y;
+            for(let i = 0; i < headParticles; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = (0.2 + Math.random() * 0.3) * catSize;
+                const px = headX + Math.cos(angle) * radius;
+                const py = headY + Math.sin(angle) * radius;
+                const pz = (Math.random() - 0.5) * 0.5;
+                positions.push(px, py, pz);
+                colors.push(1.0, 1.0, 1.0); // 白色
+            }
+            
+            // 小猫耳朵（两个三角形，在头部上方）
+            const earParticles = Math.floor(catParticleCount * 0.1);
+            for(let ear = 0; ear < 2; ear++) {
+                const earX = headX + (ear === 0 ? -0.3 : 0.3) * catSize;
+                const earY = headY + 0.5 * catSize;
+                for(let i = 0; i < earParticles / 2; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = (0.1 + Math.random() * 0.15) * catSize;
+                    const px = earX + Math.cos(angle) * radius;
+                    const py = earY + Math.sin(angle) * radius;
+                    const pz = (Math.random() - 0.5) * 0.3;
+                    positions.push(px, py, pz);
+                    colors.push(1.0, 1.0, 1.0); // 白色
+                }
+            }
+            
+            // 小猫尾巴（竖起来，在身体左侧，可以摇动）
+            const tailParticles = Math.floor(catParticleCount * 0.15);
+            const tailBaseX = x - catSize * 0.6;
+            const tailBaseY = y;
+            // 尾巴摇动：当catMoving为true时，根据时间摆动
+            const tailSwing = catMoving ? Math.sin(time * 8) * 0.3 : 0; // 摇动幅度
+            for(let i = 0; i < tailParticles; i++) {
+                const t = i / tailParticles;
+                // 尾巴向上弯曲，并添加摇动效果
+                const tailX = tailBaseX + Math.sin(t * Math.PI * 0.5) * 0.2 * catSize + tailSwing * t;
+                const tailY = tailBaseY + t * catSize * 1.2; // 尾巴向上延伸
+                const tailZ = (Math.random() - 0.5) * 0.3 + Math.cos(time * 8 + t * 2) * tailSwing * 0.5; // Z轴也摇动
+                const radius = (0.08 + Math.random() * 0.12) * catSize * (1 - t * 0.5); // 尾巴逐渐变细
+                const angle = Math.random() * Math.PI * 2;
+                const px = tailX + Math.cos(angle) * radius;
+                const py = tailY + Math.sin(angle) * radius;
+                const pz = tailZ;
+                positions.push(px, py, pz);
+                colors.push(1.0, 1.0, 1.0); // 白色
+            }
+            
+            // 填充剩余粒子
+            while(positions.length < catParticleCount * 3) {
+                positions.push(x, y, 0);
+                colors.push(1.0, 1.0, 1.0);
+            }
+            
+            return { positions, colors };
+        }
+        
+        // 更新小猫位置
+        function updateCat(time = 0) {
+            const posAttr = catGeometry.attributes.position;
+            const colorAttr = catGeometry.attributes.color;
+            
+            if(catVisible) {
+                const catData = generateCat(catX, catBaseY, time);
+                for(let i = 0; i < catParticleCount; i++) {
+                    posAttr.array[i * 3] = catData.positions[i * 3] || 0;
+                    posAttr.array[i * 3 + 1] = catData.positions[i * 3 + 1] || 0;
+                    posAttr.array[i * 3 + 2] = catData.positions[i * 3 + 2] || 0;
+                    colorAttr.array[i * 3] = catData.colors[i * 3] || 1.0;
+                    colorAttr.array[i * 3 + 1] = catData.colors[i * 3 + 1] || 1.0;
+                    colorAttr.array[i * 3 + 2] = catData.colors[i * 3 + 2] || 1.0;
+                }
+                posAttr.needsUpdate = true;
+                colorAttr.needsUpdate = true;
+            } else {
+                // 隐藏小猫（移到屏幕外）
+                for(let i = 0; i < catParticleCount; i++) {
+                    posAttr.array[i * 3] = -100;
+                    posAttr.array[i * 3 + 1] = 0;
+                    posAttr.array[i * 3 + 2] = 0;
+                }
+                posAttr.needsUpdate = true;
+            }
+        }
+        
+        // 初始化小猫（默认显示）
+        updateCat(0);
 
         // --- 4. 交互控制 ---
         
@@ -812,7 +1276,7 @@
 
         // 粒子参数控制
         let rotateSpeed = 0.1;
-        let rotateXSpeed = 0.1;
+        let spreadSpeed = 0.1; // 散开速度（手势响应速度）
         
         function toggleParticleControls() {
             const controls = document.getElementById('particle-controls');
@@ -860,10 +1324,10 @@
             document.getElementById('rotateValue').textContent = rotateSpeed.toFixed(2);
         });
         
-        // X轴旋转
-        document.getElementById('rotateXSlider').addEventListener('input', (e) => {
-            rotateXSpeed = parseFloat(e.target.value);
-            document.getElementById('rotateXValue').textContent = rotateXSpeed.toFixed(2);
+        // 散开速度
+        document.getElementById('spreadSpeedSlider').addEventListener('input', (e) => {
+            spreadSpeed = parseFloat(e.target.value);
+            document.getElementById('spreadSpeedValue').textContent = spreadSpeed.toFixed(2);
         });
 
         // 全屏切换
@@ -971,22 +1435,66 @@
             const time = performance.now() * 0.001;
             material.uniforms.uTime.value = time;
 
-            // 平滑插值手势数值，避免跳变
-            currentExpansion += (targetExpansion - currentExpansion) * 0.1;
+            // 平滑插值手势数值，避免跳变（使用可调节的散开速度）
+            currentExpansion += (targetExpansion - currentExpansion) * spreadSpeed;
             material.uniforms.uExpansion.value = currentExpansion;
+
+            // 检测捏合状态（currentExpansion < 0.2 表示捏合）
+            const isPinching = currentExpansion < 0.2;
+            
+            // 检查当前模式是否为圣诞树
+            const currentShape = document.querySelector('.shape-grid button.active');
+            const isTreeMode = currentShape && currentShape.textContent === '圣诞树';
+            
+            // 在圣诞树模式下，处理小猫
+            if(isTreeMode) {
+                if(isPinching) {
+                    // 捏合时，小猫开始移动
+                    if(!catMoving) {
+                        catMoving = true;
+                    }
+                    // 小猫向右移动
+                    catX += catSpeed;
+                    
+                    // 如果小猫走出屏幕右侧，重置位置
+                    if(catX > 20) {
+                        catX = -15; // 重新从左侧开始
+                    }
+                } else {
+                    // 散开时，小猫停止移动（保持在当前位置）
+                    catMoving = false;
+                }
+                
+                // 更新小猫位置和动画（传入时间用于尾巴摇动）
+                updateCat(time);
+            } else {
+                // 非圣诞树模式，隐藏小猫
+                if(catVisible) {
+                    catVisible = false;
+                    catMoving = false;
+                    updateCat(time);
+                }
+            }
 
             // 旋转整个粒子群（可调节速度）
             particles.rotation.y = time * rotateSpeed;
-            particles.rotation.x = Math.sin(time * 0.2) * rotateXSpeed;
 
             renderer.render(scene, camera);
         }
 
         // 窗口大小自适应
         window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
+            const containerWidth = window.innerWidth - 320;
+            const containerHeight = window.innerHeight;
+            camera.aspect = containerWidth / containerHeight;
             camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setSize(containerWidth, containerHeight);
+            
+            // 如果当前是文字模式，重新生成文字以适应新尺寸
+            const currentShape = document.querySelector('.shape-grid button.active');
+            if(currentShape && currentShape.textContent === '文字') {
+                updateTargetShape('text');
+            }
         });
 
         animate();
